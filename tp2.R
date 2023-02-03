@@ -17,7 +17,6 @@ load_libraries <- function() {
 }
 
 load_libraries()
-
 por <- read.table("student-por.csv",sep=",",header=TRUE)
 mat <- read.table("student-mat.csv",sep=",",header=TRUE)
 
@@ -79,7 +78,7 @@ y.hat <- mean(train$G3)
 calcular_ecm <- function(y.hat) {
   return(mean((y.hat - test$G3)^2))
 }
-ECM_modelo_nulo <- calcular_ecm(y.hat) # 23.15902
+ECM_modelo_nulo <- calcular_ecm(y.hat) # 14.92127
 
 comparaciones <- data.frame(Modelo="Nulo", "ECM test"=ECM_modelo_nulo)
 agregar_modelo <- function(nombre_modelo, resultado) {
@@ -117,7 +116,7 @@ queremos comprobar si solo G1 y G2 son las que obtienen los buenos resultados.
 lm.fit2 <- update(lm.fit, ~ . - G1 - G2)
 summary(lm.fit2) # el test es significativo, por lo tanto
 # hay otras variables significativas en este modelo que solo G1 y G2.
-calcular_ecm(predict(lm.fit2, test)) # da gigante: 21.08093
+calcular_ecm(predict(lm.fit2, test)) # da gigante: 11.35693
 
 ### Selección de modelos ----
 predict.regsubsets <- function(object, newdata, id, ...) {
@@ -353,3 +352,42 @@ comparaciones <- agregar_modelo("BART", ECM_bart)
 ord <- order(barfit$varcount.mean, decreasing=T)
 barfit$varcount.mean[ord]
                      
+#### XGBoost ----
+library(xgboost)
+library("tidyverse")
+library("caret")
+
+train <- map_df(train, function(columna) {
+  columna %>% 
+    as.factor() %>% 
+    as.numeric %>% 
+    { . - 1 }
+})
+
+test <- map_df(test, function(columna) {
+  columna %>% 
+    as.factor() %>% 
+    as.numeric %>% 
+    { . - 1 }
+})
+
+head(train)
+
+train_mat <- train %>% 
+  select(-G3) %>% 
+  as.matrix() %>% 
+  xgb.DMatrix(data = ., label = train$G3)
+
+test_mat <- test %>% 
+  select(-G3) %>% 
+  as.matrix() %>% 
+  xgb.DMatrix(data = ., label = test$G3)
+
+xg.fit <- xgboost(data = train_mat, 
+                  nrounds = 10, max.depth = 2, eta = 0.3, nthread = 2)
+
+xg.fit
+
+pred <- predict(xg.fit, test_mat)
+ECM_xgboost <- mean((pred-test$G3)^2)
+comparaciones <- agregar_modelo("XGBoost", ECM_xgboost)
