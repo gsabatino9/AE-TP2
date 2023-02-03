@@ -13,6 +13,8 @@ load_libraries <- function() {
   library(randomForest) # para bagging y randomForest
   library(gbm) # para boosting
   library(BART) # para Bayesian Additive Regression Trees
+  library(ggplot2)
+  library(dplyr)
   print("MASS, ISLR2, carData, car, boot, leaps, glmnet, tree, randomForest, gbm, BART")
 }
 
@@ -37,6 +39,7 @@ aux_test <- (-aux_train)
 
 train <- df[aux_train, ]
 test <- df[aux_test, ]
+
 
 n <- nrow(train)
 p <- ncol(train)-1

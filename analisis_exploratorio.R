@@ -55,3 +55,28 @@ any(is.na(train))
 apply(is.na(train), 2, sum)
 
 str(train)
+
+################################### probando quitar algunas categoricas!
+modelo <- lm(G3 ~ ., data=train)
+
+train_new <- train
+test_new <- test
+train_new$agebest <- ifelse(train_new$age == 20 & train_new$course_type == 'M', 1, 0)
+test_new$agebest <- ifelse(test_new$age == 20 & test_new$course_type == 'M', 1, 0)
+modelo_new <- lm(G3 ~ ., data=train_new)
+
+train_new$sexbest <- ifelse((train_new$sex == 'F' & train_new$course_type == 'P') | (train_new$sex == 'M' & train_new$course_type == 'M'), 1, 0)
+test_new$sexbest <- ifelse((test_new$sex == 'F' & test_new$course_type == 'P') | (test_new$sex == 'M' & test_new$course_type == 'M'), 1, 0)
+modelo_new2 <- lm(G3 ~ ., data=train_new)
+
+train_new$FM_edu <- as.numeric(train_new$Fedu) + as.numeric(train_new$Medu) - 2
+test_new$FM_edu <- as.numeric(test_new$Fedu) + as.numeric(test_new$Medu) - 2
+train_new <- train_new[,!names(train_new) %in% c("Fedu","Medu")]
+test_new <- test_new[,!names(test_new) %in% c("Fedu","Medu")]
+modelo_new3 <- lm(G3 ~ ., data=train_new)
+
+calcular_ecm(predict(modelo, test))
+calcular_ecm(predict(modelo_new, test_new))
+calcular_ecm(predict(modelo_new2, test_new))
+calcular_ecm(predict(modelo_new3, test_new))
+
