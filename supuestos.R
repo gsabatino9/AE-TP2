@@ -60,3 +60,39 @@ plot(modelo$fitted.values, rstud, pch=20,
      col="darkblue",xlab="valor ajustado", 
      ylab="residuo estudientizado")
 abline(h=0, lwd=2)
+
+#### Valido supuestos con el mejor modelo lineal
+rest<-rstandard(step.model)
+rstud<-rstudent(step.model)
+
+par(mfrow=c(2,2))
+qqnorm(residuos, pch=20)
+qqline(residuos, lwd=2, col="red")
+
+qqnorm(rest, pch=20)
+qqline(rest, col="red")
+
+qqnorm(rstud, pch=20)
+qqline(rstud, col="red")
+
+plot(step.model$fitted.values, rstud, pch=20,
+     col="darkblue",xlab="valor ajustado", 
+     ylab="residuo estudientizado")
+abline(h=0, lwd=2)
+
+cooksd <- cooks.distance(step.model)
+plot(cooksd, pch="*", cex=2, main="Influential Obs by Cooks distance")
+abline(h = 4*mean(cooksd, na.rm=T), col="red")
+text(x=1:length(cooksd)+1, y=cooksd, 
+     labels=ifelse(cooksd>4*mean(cooksd, na.rm=T),
+                   names(cooksd),""), col="red")
+
+influential <- as.numeric(names(cooksd)[(cooksd > 4*mean(cooksd, na.rm=T))])
+
+View(train[row.names(train) %in% influential, ]) # se ve
+# que, por lo general, los outliers son los que tienen nota G1 > 0,
+# G2 > 0 y G3 == 0.
+
+outliers <- car::outlierTest(step.model)
+outliers[1] # c(914, 984, 946, 909, 173, 587, 960, 966, 983, 640)
+View(train[row.names(train) %in% c(914, 984, 946, 909, 173, 587, 960, 966, 983, 640), ])
