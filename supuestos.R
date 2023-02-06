@@ -1,85 +1,76 @@
+# 1. Linealidad: ----
 "
-Supuestos:
-1. Los errores tienen media 0. Supuesto de linealidad:
-  Significancia del test.
-  
-2. Todos los errores tienen la misma varianza (constante) = sigmna^2. 
-Homocedasticidad:
-  Graficamos residuos vs predichos y no tenemos que observar patrones,
-  ie, nube heterogénea.
-  
-3. Los errores son indeptes entre sí.
-
-4. Los errores tienen distribución normal:
-  Shapiro test y qqplot con los residuos estudentizados.
+Se chequea viendo si residuos vs Y_sombrero no tiene ningún patrón.
 "
+plot(lm.fit, 1, pch=20)
+# Cumple puesto que no se observa una tendencia significativa de los
+# residuos r_i (estimación de los errores Epsilon_i) respecto de cada
+# Y_sombrero_i.
+termplot(lm.fit, partial.resid=T) # si quisiera ver alguna
+# relación no lineal.
 
-# 1. Significancia del test ----
-modelo <- lm(G3 ~ ., data=train)
-summary(modelo) 
-# La regresión es significativa: p-value: < 2.2e-16.
-
-residuos <- modelo$residuals
-mean(residuos)
-# Los errores tienden a 0 en promedio.
-
-# 2. Supuesto de homocedasticidad ----
-plot(modelo$fitted.values, residuos, pch=20, col="deepskyblue")
-abline(h=0, lwd=2) 
-# no se observa un patrón de puntos, más allá de ciertos
-# outliers.
-
-# 3. Independencia de los errores ----
+# 2. Normalidad: ----
 "
-Lo suponemos, puesto que no es una serie temporal.
+Si el supuesto de linealidad u homocedasticidad no se
+cumplen => puede que el supuesto de normalidad tampoco.
 "
 
-# 4. Los errores tienen distribución iid normal ----
+plot(lm.fit, 2, pch=20)
 "
-Tenemos que graficar el qqnorm de los residuos estudentizados
-y ver que sus colas son simétricas y no son pesadas.
-
-Esto lo validaremos en el mejor modelo, puesto que tenemos
-outliers que no nos permiten identificar bien ésto, pero
-que nos servirá tener menos cantidad de columnas para identificarlos.
+Observamos que en los extremos (sobre todo al comienzo), los
+datos se apartan mucho de la distribución normal.
+Esto seguramente será por los outliers que tenemos, puesto
+que en el centro, se ajusta muy bien a la línea que indica
+la distribución normal.
 "
-rest<-rstandard(modelo)
-rstud<-rstudent(modelo)
 
-par(mfrow=c(2,2))
-qqnorm(residuos, pch=20)
-qqline(residuos, lwd=2, col="red")
+shapiro.test(lm.fit$residuals) # p-value < 2.2e-16
+# Rechaza => No hay normalidad.
 
-qqnorm(rest, pch=20)
-qqline(rest, col="red")
+## Transformación de Yeo-Johnson:
+"
+Esta transformación es una generalización de Box-Cox que
+sirve para datos con variable a predecir no-negativa. En
+nuestro caso, G3 es no negativa puesto que existe la nota 0.
 
-qqnorm(rstud, pch=20)
-qqline(rstud, col="red")
+Otra solución es correr una constante todos los datos, entonces
+estoy corriendo la media.
+"
+YJ <- car::powerTransform(lm(G3 ~ ., data=train), family = "yjPower")
+(lambdaYJ <- YJ$lambda)
 
-plot(modelo$fitted.values, rstud, pch=20,
-     col="darkblue",xlab="valor ajustado", 
-     ylab="residuo estudientizado")
-abline(h=0, lwd=2)
+G3_trans <- car::yjPower(U = train$G3, lambda = lambdaYJ)
 
-#### Valido supuestos con el mejor modelo lineal
-rest<-rstandard(step.model)
-rstud<-rstudent(step.model)
+par(mfrow = c(1, 2))
+hist(train$G3, freq = FALSE, breaks = 10, ylim = c(0, 0.3))
+hist(G3_trans, freq = FALSE, breaks = 10, ylim = c(0, 0.3))
 
-par(mfrow=c(2,2))
-qqnorm(residuos, pch=20)
-qqline(residuos, lwd=2, col="red")
+train2 <- train
+train2$G3 <- G3_trans
 
-qqnorm(rest, pch=20)
-qqline(rest, col="red")
+head(train2)
+par(mfrow=c(1,2))
+plot(lm.fit, 2, pch=20)
+plot(lm(G3 ~ ., data=train2), 2, pch=20)
+# notamos menos cantidad de puntos a la izquierda,
+# es decir, es ligeramente mejor.
 
-qqnorm(rstud, pch=20)
-qqline(rstud, col="red")
+# 3. Homocedasticidad: ----
+"
+Lo que espero es que en el gráfico de los residuos estandarizados
+(escalados a raíz cuadrada), la línea roja que indica la media se
+pegue bastante a 1, y que no se exhiban patrones no constantes
+(como algo cuadrático por ejemplo).
+"
+plot(lm.fit, 3, pch=20)
+# Está claro que está alrededor del 1 y que 
+# no hay patrones no constantes.
 
-plot(step.model$fitted.values, rstud, pch=20,
-     col="darkblue",xlab="valor ajustado", 
-     ylab="residuo estudientizado")
-abline(h=0, lwd=2)
+# Un test para verificarla:
+car::ncvTest(lm.fit)
 
+
+# Outliers: ----
 cooksd <- cooks.distance(step.model)
 plot(cooksd, pch="*", cex=2, main="Influential Obs by Cooks distance")
 abline(h = 4*mean(cooksd, na.rm=T), col="red")

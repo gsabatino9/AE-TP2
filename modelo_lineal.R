@@ -1,12 +1,3 @@
-"
-En la siguiente sección entrenamos diversos modelos de regresión lineal:
-1. Un modelo nulo sobre el cual comparar todos los demás, es decir, uno
-donde Beta_1 = ... = Beta_p = 0. Que se corresponde con la media de las Y.
-2. Un modelo con regresión lineal (todas los predictores).
-3. Realizamos selección de modelos usando FS, BS y Mixed-Selection.
-4. Regularización: Ridge y Lasso.
-"
-
 # Introducción ----
 "
 Pasos del modelo lineal:
@@ -106,6 +97,14 @@ test$Dalc <- as.numeric(test$Dalc)
 test$Walc <- as.numeric(test$Walc)
 test$health <- as.numeric(test$health)
 # Comparación de modelos ----
+"
+En la siguiente sección entrenamos diversos modelos de regresión lineal:
+1. Un modelo nulo sobre el cual comparar todos los demás, es decir, uno
+donde Beta_1 = ... = Beta_p = 0. Que se corresponde con la media de las Y.
+2. Un modelo con regresión lineal (todas los predictores).
+3. Realizamos selección de modelos usando FS, BS y Mixed-Selection.
+4. Regularización: Ridge y Lasso.
+"
 ## Modelo nulo ----
 y.hat <- mean(train$G3)
 calcular_ecm <- function(y.hat) {
