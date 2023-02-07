@@ -159,10 +159,11 @@ for (j in 1:k) {
 }
 
 mean.cv.errors.fwd <- apply(cv.errors, 2, mean)
-coef_fwd <- which.min(mean.cv.errors.fwd) # 2
+coef_fwd <- which.min(mean.cv.errors.fwd)
 coef(regfit.fwd, coef_fwd)
 
-fwd.fit <- lm(G3 ~ nursery+famrel+absences+G1+G2, data=train)
+#fwd.fit <- lm(G3 ~ nursery+famrel+absences+G1+G2, data=train)
+fwd.fit <- lm(G3 ~ G1+G2+age+Fedu+nursery+famrel+absences+J2, data=train)
 y.hat <- predict(fwd.fit, test)
 comparaciones <- agregar_modelo("FWD selection", 
                                 y.hat, "nursery+famrel+absences+G1+G2")
@@ -189,6 +190,12 @@ for (j in 1:k) {
 mean.cv.errors.bwd <- apply(cv.errors, 2, mean)
 coef_bwd <- which.min(mean.cv.errors.bwd)
 coef(regfit.bwd, coef_bwd) # mismo que FWD.
+
+""
+bwd.fit <- lm(G3 ~ G2+nursery+famrel+absences+J2, data=train)
+y.hat <- predict(bwd.fit, test)
+comparaciones <- agregar_modelo("BWD selection", 
+                                y.hat, "nursery+famrel+absences+G1+G2")
 
 #### Mixed-Selection:
 regfit.mix <- regsubsets(G3 ~ ., data=train, nvmax=p, method="seqrep")
@@ -462,7 +469,9 @@ mean.cv.errors.fwd <- apply(cv.errors, 2, mean)
 coef_fwd <- which.min(mean.cv.errors.fwd)
 coef(regfit.fwd, coef_fwd)
 
-fwd.fit <- lm(G3 ~ G1+G2+absences, data=train2)
+#fwd.fit <- lm(G3 ~ G1+G2+absences, data=train2)
+fwd.fit <- lm(G3 ~ age+Fedu+studytime+failures+G1+G2+
+                K1+Dalc+absences+J1+J2, data=train2)
 y.hat <- predict(fwd.fit, test2)
 comparaciones <- agregar_modelo("FWD selection 2", 
                                 y.hat, "G1+G2+absences")
