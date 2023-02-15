@@ -27,8 +27,8 @@ por <- read.table("student-por.csv",sep=",",header=TRUE)
 por[-c(3,13,14,15,30,31,32,33)] <- 
   lapply(por[-c(3,13,14,15,30,31,32,33)], factor)
 
-por <- data.frame(lapply(por, as.numeric))
 aux <- por
+por <- data.frame(lapply(por, as.numeric))
 
 # Calculo binario: Aprobado / Desaprobado ----
 por$G3 <- ifelse(por$G3 >= 12, 1 ,0)

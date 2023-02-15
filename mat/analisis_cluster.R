@@ -28,8 +28,8 @@ mat <- read.table("student-mat.csv",sep=",",header=TRUE)
 mat[-c(3,13,14,15,30,31,32,33)] <- 
   lapply(mat[-c(3,13,14,15,30,31,32,33)], factor)
 
-mat <- data.frame(lapply(mat, as.numeric))
 aux <- mat
+mat <- data.frame(lapply(mat, as.numeric))
 
 # Calculo binario: Aprobado / Desaprobado ----
 mat$G3 <- ifelse(mat$G3 >= 12, 1 ,0)
@@ -49,11 +49,6 @@ abline(h=30, col="chocolate")
 abline(h=20, col="blue")
 abline(h=17, col="orange")
 
-clusters_bin$JC1 <- cutree(hc.complete, h=40)
-clusters_bin$JC2 <- cutree(hc.complete, h=30)
-clusters_bin$JC3 <- cutree(hc.complete, h=20)
-clusters_bin$JC4 <- cutree(hc.complete, h=17)
-
 xsc <- scale(mat)
 scaled.hc <- hclust(dist(xsc), method = "complete")
 plot(scaled.hc,
@@ -62,12 +57,32 @@ abline(h=11.5, col="blue")
 abline(h=10, col="chocolate")
 abline(h=11, col="red")
 
-clusters_bin$JC5 <- cutree(scaled.hc, h=11)
-clusters_bin$JC6 <- cutree(scaled.hc, h=11.5)
-clusters_bin$JC7 <- cutree(scaled.hc, h=10)
+##### Por correlación ----
+dd <- as.dist(1-cor(t(mat)))
+hc.complete <- hclust(dd, method="complete")
+plot(hc.complete, main = "Complete Linkage",
+     xlab = "", sub = "", cex = .9, label=F)
+rect.hclust(hc.complete , h = 0.1, border = 2:15, )
+abline(h=0.1, col="red")
+abline(h=0.2, col="chocolate")
+abline(h=0.15, col="blue")
 
-# h = 12.5 -> 4 grupos
-groups <- cutree(scaled.hc, h=12.5)
+### K-means ----
+# Método del codo:
+wssplot <- function(data, nc=15, seed=9){
+  wss <- (nrow(data)-1)*sum(apply(data,2,var))
+  for (i in 2:nc){
+    set.seed(seed)
+    wss[i] <- sum(kmeans(data, centers=i)$withinss)}
+  plot(1:nc, wss, type="b", xlab="Number of groups",
+       ylab="Sum of squares within a group",pch=20)}
+
+wssplot(mat, nc = 20) # nos quedamos con 4.
+xsd <- scale(mat)
+set.seed(9)
+# pongo 4 para que tenga la misma cantidad que jerárquico
+km.out <- kmeans(xsd, 4, nstart=20)
+groups <- km.out$cluster
 table(groups)
 
 aux2 <- map_df(aux, function(columna) {
@@ -87,216 +102,84 @@ aux2$traveltime <- aux$traveltime
 aux2$studytime <- aux$studytime
 
 # para comparar las medias:
-cmp <- data.frame("col"=names(aux))
+cmp2 <- data.frame("col"=names(aux))
+
 
 for (i in 1:max(groups)) {
-  a <- apply(aux2[groups==i, ], 2, mean)
-  cmp <- cbind(cmp, a)
+  a <- round(apply(aux2[groups==i, ], 2, mean), digits=4)
+  cmp2 <- cbind(cmp2, a)
 }
 group <- function(i) {
   return(aux2[groups==i, ])
 }
 
-View(cmp)
-### K-means ----
-xsd <- scale(mat)
-set.seed(9)
-# pongo 4 para que tenga la misma cantidad que jerárquico
-km.out <- kmeans(xsd, 4, nstart=20)
-set.seed(9)
-clusters_bin$K1 <- kmeans(xsd, 4, nstart=20)$cluster
-set.seed(9)
-clusters_bin$K2 <- kmeans(xsd, 5, nstart=20)$cluster
-set.seed(9)
-clusters_bin$K3 <- kmeans(xsd, 6, nstart=20)$cluster
-set.seed(9)
-clusters_bin$K4 <- kmeans(xsd, 7, nstart=20)$cluster
-set.seed(9)
-clusters_bin$K5 <- kmeans(xsd, 8, nstart=20)$cluster
+cmp2 <- cmp2[, -1]
+colnames(cmp2) <- c('g1', 'g2', 'g3', 'g4')
+View(cmp2)
 
-km.clusters <- km.out$cluster
+library(gridExtra)
+png("mat1.png", width=300, height=200)
+p<-tableGrob(cmp2[c("G1", "G2", "G3"), ])
+grid.arrange(p)
+dev.off()
 
-K1 <- km.clusters
-g1 <- aux[km.clusters == 1, ]
-g2 <- aux[km.clusters == 2, ]
-g3 <- aux[km.clusters == 3, ]
-g4 <- aux[km.clusters == 4, ]
+aux3 <- mat
+aux3$cluster <- as.factor(groups)
+p <- ggparcoord(data = aux3[, c("G1", "G2", "G3", "cluster")], groupColumn="cluster",
+) + labs(x="", y="", title="Clustering")
+ggplotly(p)
 
-g1.2 <- map_df(g1, function(columna) {
-  columna %>% 
-    as.factor() %>% 
-    as.numeric %>% 
-    { . - 1 }
-})
-g2.2 <- map_df(g2, function(columna) {
-  columna %>% 
-    as.factor() %>% 
-    as.numeric %>% 
-    { . - 1 }
-})
-g3.2 <- map_df(g3, function(columna) {
-  columna %>% 
-    as.factor() %>% 
-    as.numeric %>% 
-    { . - 1 }
-})
-g4.2 <- map_df(g4, function(columna) {
-  columna %>% 
-    as.factor() %>% 
-    as.numeric %>% 
-    { . - 1 }
-})
+png("mat2.png", width=300, height=200)
+p<-tableGrob(cmp2[c("school", "sex", "address", "famsize", "age", "G3"), ])
+grid.arrange(p)
+dev.off()
+p <- ggparcoord(data = aux3[, c("school", "sex", "address", "famsize", "age", "G3", "cluster")], groupColumn="cluster",
+) + labs(x="", y="", title="Clustering")
+ggplotly(p)
 
-g1.2$age <- g1$age
-g1.2$G1 <- g1$G1
-g1.2$G2 <- g1$G2
-g1.2$G3 <- g1$G3
-g1.2$absences <- g1$absences
-g1.2$failures <- g1$failures
-g1.2$traveltime <- g1$traveltime
-g1.2$studytime <- g1$studytime
+png("mat3.png", width=300, height=200)
+p<-tableGrob(cmp2[c("Medu", "Fedu", "G3"), ])
+grid.arrange(p)
+dev.off()
+p <- ggparcoord(data = aux3[, c("Medu", "Fedu", "G3", "cluster")], groupColumn="cluster",
+) + labs(x="", y="", title="Clustering")
+ggplotly(p)
 
-g2.2$age <- g2$age
-g2.2$G1 <- g2$G1
-g2.2$G2 <- g2$G2
-g2.2$G3 <- g2$G3
-g2.2$absences <- g2$absences
-g2.2$failures <- g2$failures
-g2.2$traveltime <- g2$traveltime
-g2.2$studytime <- g2$studytime
+png("mat4.png", width=300, height=200)
+p<-tableGrob(cmp2[c("studytime", "traveltime", "freetime", "G3"), ])
+grid.arrange(p)
+dev.off()
 
-g3.2$age <- g3$age
-g3.2$G1 <- g3$G1
-g3.2$G2 <- g3$G2
-g3.2$G3 <- g3$G3
-g3.2$absences <- g3$absences
-g3.2$failures <- g3$failures
-g3.2$traveltime <- g3$traveltime
-g3.2$studytime <- g3$studytime
+png("mat5.png", width=300, height=200)
+p<-tableGrob(cmp2[c("Dalc", "Walc", "goout", "G3"), ])
+grid.arrange(p)
+dev.off()
 
-g4.2$age <- g4$age
-g4.2$G1 <- g4$G1
-g4.2$G2 <- g4$G2
-g4.2$G3 <- g4$G3
-g4.2$absences <- g4$absences
-g4.2$failures <- g4$failures
-g4.2$traveltime <- g4$traveltime
-g4.2$studytime <- g4$studytime
+png("mat6.png", width=300, height=200)
+p<-tableGrob(cmp2[c("failures", "absences", "higher", "G3"), ])
+grid.arrange(p)
+dev.off()
 
-# para comparar las medias:
-cmp <- data.frame("col"=names(aux))
-cmp$g1 <- apply(g1.2, 2, mean)
-cmp$g2 <- apply(g2.2, 2, mean)
-cmp$g3 <- apply(g3.2, 2, mean)
-cmp$g4 <- apply(g4.2, 2, mean)
-View(cmp)
+png("mat7.png", width=300, height=200)
+p<-tableGrob(cmp2[c("health", "internet", "schoolsup", "G3"), ])
+grid.arrange(p)
+dev.off()
+
+png("mat_completo.png", width=300, height=800)
+p<-tableGrob(cmp2)
+grid.arrange(p)
+dev.off()
 ### PCA + jerárquico ----
 pr.out <- prcomp(mat, scale=TRUE)
 # tendría que ver cuál explica más la varianza, no solo 5
 hc.out <- hclust(dist(pr.out$x[, 1:5]))
 plot(hc.out, main = "Complete Linkage + PCA",
-     xlab = "", sub = "", cex = .9) # mucho más balanceado.
+     xlab = "", sub = "", cex = .9, labels=FALSE) # mucho más balanceado.
+rect.hclust(hc.out , h = 7, border = 2:15, )
 abline(h=9, col="red")
 abline(h=8, col="blue")
 abline(h=7, col="chocolate")
 abline(h=6, col="deepskyblue")
-
-clusters_bin$JC8 <- cutree(hc.out, h=9)
-clusters_bin$JC9 <- cutree(hc.out, h=8)
-clusters_bin$JC10 <- cutree(hc.out, h=7)
-clusters_bin$JC11 <- cutree(hc.out, h=6)
-
-groups <- cutree(hc.out, 5)
-g1 <- aux[groups == 1, ]
-g2 <- aux[groups == 2, ]
-g3 <- aux[groups == 3, ]
-g4 <- aux[groups == 4, ]
-g5 <- aux[groups == 5, ]
-
-g1.2 <- map_df(g1, function(columna) {
-  columna %>% 
-    as.factor() %>% 
-    as.numeric %>% 
-    { . - 1 }
-})
-g2.2 <- map_df(g2, function(columna) {
-  columna %>% 
-    as.factor() %>% 
-    as.numeric %>% 
-    { . - 1 }
-})
-g3.2 <- map_df(g3, function(columna) {
-  columna %>% 
-    as.factor() %>% 
-    as.numeric %>% 
-    { . - 1 }
-})
-g4.2 <- map_df(g4, function(columna) {
-  columna %>% 
-    as.factor() %>% 
-    as.numeric %>% 
-    { . - 1 }
-})
-g5.2 <- map_df(g5, function(columna) {
-  columna %>% 
-    as.factor() %>% 
-    as.numeric %>% 
-    { . - 1 }
-})
-
-g1.2$age <- g1$age
-g1.2$G1 <- g1$G1
-g1.2$G2 <- g1$G2
-g1.2$G3 <- g1$G3
-g1.2$absences <- g1$absences
-g1.2$failures <- g1$failures
-g1.2$traveltime <- g1$traveltime
-g1.2$studytime <- g1$studytime
-
-g2.2$age <- g2$age
-g2.2$G1 <- g2$G1
-g2.2$G2 <- g2$G2
-g2.2$G3 <- g2$G3
-g2.2$absences <- g2$absences
-g2.2$failures <- g2$failures
-g2.2$traveltime <- g2$traveltime
-g2.2$studytime <- g2$studytime
-
-g3.2$age <- g3$age
-g3.2$G1 <- g3$G1
-g3.2$G2 <- g3$G2
-g3.2$G3 <- g3$G3
-g3.2$absences <- g3$absences
-g3.2$failures <- g3$failures
-g3.2$traveltime <- g3$traveltime
-g3.2$studytime <- g3$studytime
-
-g4.2$age <- g4$age
-g4.2$G1 <- g4$G1
-g4.2$G2 <- g4$G2
-g4.2$G3 <- g4$G3
-g4.2$absences <- g4$absences
-g4.2$failures <- g4$failures
-g4.2$traveltime <- g4$traveltime
-g4.2$studytime <- g4$studytime
-
-g5.2$age <- g5$age
-g5.2$G1 <- g5$G1
-g5.2$G2 <- g5$G2
-g5.2$G3 <- g5$G3
-g5.2$absences <- g5$absences
-g5.2$failures <- g5$failures
-g5.2$traveltime <- g5$traveltime
-g5.2$studytime <- g5$studytime
-
-# para comparar las medias:
-cmp <- data.frame("col"=names(aux))
-cmp$g1 <- apply(g1.2, 2, mean)
-cmp$g2 <- apply(g2.2, 2, mean)
-cmp$g3 <- apply(g3.2, 2, mean)
-cmp$g4 <- apply(g4.2, 2, mean)
-cmp$g5 <- apply(g5.2, 2, mean)
-View(cmp)
 
 ## Clustering por columna ----
 mat <- t(mat)
@@ -312,6 +195,8 @@ plot(hc.average, main = "Average Linkage",
 hc.scale <- hclust(dist(scale(mat)), method="complete")
 plot(hc.scale, main = "Complete Linkage",
      xlab = "", sub = "", cex = .9)
+
+
 
 ### PCA + jerárquico ----
 pr.out <- prcomp(mat, scale=TRUE)
