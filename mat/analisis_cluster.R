@@ -196,7 +196,10 @@ hc.scale <- hclust(dist(scale(mat)), method="complete")
 plot(hc.scale, main = "Complete Linkage",
      xlab = "", sub = "", cex = .9)
 
-
+dd <- as.dist(1-cor(t(mat)))
+hc.complete <- hclust(dd, method="complete")
+plot(hc.complete, main = "Clustering por columna: Matemática",
+     xlab = "", ylab="Correlación", sub = "", cex = .9)
 
 ### PCA + jerárquico ----
 pr.out <- prcomp(mat, scale=TRUE)

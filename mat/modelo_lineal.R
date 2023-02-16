@@ -104,13 +104,13 @@ calcular_ecm <- function(y.hat) {
   return(mean((y.hat - test$G3)^2))
 }
 ECM_modelo_nulo <- calcular_ecm(y.hat) # 27.86631
-comparaciones <- data.frame(Modelo="Nulo", "ECM test"=ECM_modelo_nulo, "VAs"="-")
+comparaciones <- data.frame(Modelo="Nulo", "ECM test"=ECM_modelo_nulo)
 
-agregar_modelo <- function(nombre, pred, variables) {
+agregar_modelo <- function(nombre, pred) {
   ECM <- calcular_ecm(pred)
   return(
     rbind(comparaciones, 
-          data.frame(Modelo=nombre, "ECM test"=ECM, "VAs"=variables))
+          data.frame(Modelo=nombre, "ECM test"=ECM))
   )
 }
 
@@ -128,7 +128,15 @@ a excepción de G2. Pero, puede que alguno de ellos se deba a un error
 "
 
 y.hat <- predict(lm.fit, test)
-comparaciones <- agregar_modelo("Reg. lineal completo", y.hat, "Todas")
+comparaciones <- agregar_modelo("Reg. lineal completo", y.hat)
+
+importancias <- (varImp(lm.fit) / sum(varImp(lm.fit)[,1])) * 100
+ord <- order(importancias[, 1], decreasing=T)
+importancias$Features <- row.names(importancias)
+row.names(importancias) <- 1:nrow(importancias)
+
+importancias <- importancias[ord, ]
+row.names(importancias) <- importancias$features
 ## Selección de modelos ----
 predict.regsubsets <- function(object, newdata, id, ...) {
   form <- as.formula(object$call[[2]])
@@ -162,11 +170,10 @@ mean.cv.errors.fwd <- apply(cv.errors, 2, mean)
 coef_fwd <- which.min(mean.cv.errors.fwd)
 coef(regfit.fwd, coef_fwd)
 
-#fwd.fit <- lm(G3 ~ nursery+famrel+absences+G1+G2, data=train)
-fwd.fit <- lm(G3 ~ G1+G2+age+Fedu+nursery+famrel+absences+J2, data=train)
+fwd.fit <- lm(G3 ~ nursery+famrel+absences+G1+G2, data=train)
 y.hat <- predict(fwd.fit, test)
 comparaciones <- agregar_modelo("FWD selection", 
-                                y.hat, "nursery+famrel+absences+G1+G2")
+                                y.hat)
 
 #### Backward-Selection:
 regfit.bwd <- regsubsets(G3 ~ ., data=train, nvmax=p, method="backward")
@@ -226,8 +233,15 @@ step.model <- stepAIC(lm.fit, direction="both", trace=FALSE)
 summary(step.model)
 
 y.hat <- predict(step.model, test)
-comparaciones <- agregar_modelo("MIXED selection AIC", y.hat,
-"school+age+nursery+internet+famrel+Walc+absences+G1+G2")
+comparaciones <- agregar_modelo("MIXED selection AIC", y.hat)
+
+importancias <- (varImp(step.model) / sum(varImp(step.model)[,1])) * 100
+ord <- order(importancias[, 1], decreasing=T)
+importancias$Features <- row.names(importancias)
+row.names(importancias) <- 1:nrow(importancias)
+
+importancias <- importancias[ord, ]
+row.names(importancias) <- importancias$features
 
 ## Analizo con modelo lineal cada una por separado ----
 # 1. School:
@@ -367,8 +381,7 @@ test2 <- test[, !(names(test) %in% sacar)]
 nuevo_modelo <- lm(G3 ~ ., data=train2)
 summary(nuevo_modelo)
 comparaciones <- agregar_modelo(
-  "Quitando VAs rl simple", predict(nuevo_modelo, test), 
-  "age, Fedu, studytime, failures, higher, romantic, goout, G1, G2")
+  "Quitando VAs rl simple", predict(nuevo_modelo, test))
 
 
 ## Genero un árbol de decisión por c/u de las variables quitadas ----
@@ -434,7 +447,15 @@ summary(nuevo_modelo2)
 p <- ncol(train2)-1
 
 comparaciones <- agregar_modelo(
-  "Cols generadas de árboles", predict(nuevo_modelo2, test2), "...")
+  "Cols generadas de árboles", predict(nuevo_modelo2, test2))
+
+importancias <- (varImp(nuevo_modelo2) / sum(varImp(nuevo_modelo2)[,1])) * 100
+ord <- order(importancias[, 1], decreasing=T)
+importancias$Features <- row.names(importancias)
+row.names(importancias) <- 1:nrow(importancias)
+
+importancias <- importancias[ord, ]
+row.names(importancias) <- importancias$features
 # Mejora muchísimo.
 ## Selección de modelos ----
 predict.regsubsets <- function(object, newdata, id, ...) {
@@ -469,12 +490,10 @@ mean.cv.errors.fwd <- apply(cv.errors, 2, mean)
 coef_fwd <- which.min(mean.cv.errors.fwd)
 coef(regfit.fwd, coef_fwd)
 
-#fwd.fit <- lm(G3 ~ G1+G2+absences, data=train2)
-fwd.fit <- lm(G3 ~ age+Fedu+studytime+failures+G1+G2+
-                K1+Dalc+absences+J1+J2, data=train2)
+fwd.fit <- lm(G3 ~ G1+G2+absences, data=train2)
 y.hat <- predict(fwd.fit, test2)
 comparaciones <- agregar_modelo("FWD selection 2", 
-                                y.hat, "G1+G2+absences")
+                                y.hat)
 
 ### Mixed-Selection por AIC
 set.seed(9)
@@ -482,8 +501,16 @@ step.model <- stepAIC(nuevo_modelo2, direction="both", trace=FALSE)
 summary(step.model)
 
 y.hat <- predict(step.model, test2)
-comparaciones <- agregar_modelo("MIXED selection AIC", y.hat,
-"age, studytime, G1, G2, Dalc, absences")
+comparaciones <- agregar_modelo("MIXED selection AIC", y.hat)
+
+importancias <- (varImp(step.model) / sum(varImp(step.model)[,1])) * 100
+ord <- order(importancias[, 1], decreasing=T)
+importancias$Features <- row.names(importancias)
+row.names(importancias) <- 1:nrow(importancias)
+
+importancias <- importancias[ord, ]
+row.names(importancias) <- importancias$features
+importancias[importancias$Overall > 4, ]
 
 ## LASSO ----
 x.train <- model.matrix(G3 ~ ., train2)[, -1]
@@ -498,5 +525,21 @@ set.seed(9)
 cv.out <- cv.glmnet(x.train, y.train, alpha=1)
 
 best_lambda <- cv.out$lambda.min
+coef(lasso.mod, s=best_lambda)
 lasso.pred <- predict(lasso.mod, s=best_lambda, newx=x.test)
-comparaciones <- agregar_modelo("Lasso", lasso.pred, "...")
+
+sst <- sum((test$G3 - mean(test$G3))^2)
+sse <- sum((lasso.pred - test$G3)^2)
+rsq <- 1 - (sse * (n-1))/(sst * (n-p))
+
+lm2 <- lm(G3 ~ age+Fedu+studytime+failures+romantic+G1+G2+reason+Dalc+absences,
+          data=train2)
+comparaciones <- agregar_modelo("Lasso", predict(lm2, test2))
+
+importancias <- (varImp(lm2) / sum(varImp(lm2)[,1])) * 100
+ord <- order(importancias[, 1], decreasing=T)
+importancias$Features <- row.names(importancias)
+row.names(importancias) <- 1:nrow(importancias)
+
+importancias <- importancias[ord, ]
+row.names(importancias) <- importancias$features
