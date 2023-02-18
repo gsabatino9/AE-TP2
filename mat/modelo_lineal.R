@@ -38,6 +38,7 @@ y concluyendo que no hay ningún patrón.
 load_libraries <- function() {
   library(MASS)
   library(ISLR2)
+  library(caret)
   library(carData)
   library(car)
   library(boot) # para usar cv.glm() para cv y boot() para bootstrap
@@ -52,6 +53,7 @@ load_libraries <- function() {
   library(dplyr)
   print("MASS, ISLR2, carData, car, boot, leaps, glmnet, tree, randomForest, gbm, BART")
 }
+setwd("~/Desktop/AE/ae-tp2-git/AE-TP2/mat")
 
 load_libraries()
 mat <- read.table("student-mat.csv",sep=",",header=TRUE)
@@ -168,7 +170,7 @@ for (j in 1:k) {
 
 mean.cv.errors.fwd <- apply(cv.errors, 2, mean)
 coef_fwd <- which.min(mean.cv.errors.fwd)
-coef(regfit.fwd, coef_fwd)
+coef(regfit.fwd, coef_fwd) # nursery+famrel+absences+G1+G2,
 
 fwd.fit <- lm(G3 ~ nursery+famrel+absences+G1+G2, data=train)
 y.hat <- predict(fwd.fit, test)
@@ -196,13 +198,13 @@ for (j in 1:k) {
 
 mean.cv.errors.bwd <- apply(cv.errors, 2, mean)
 coef_bwd <- which.min(mean.cv.errors.bwd)
-coef(regfit.bwd, coef_bwd) # mismo que FWD.
+coef(regfit.bwd, coef_bwd) # mismo que FWD . . .nursery+famrel+absences+G1+G2,
 
 ""
-bwd.fit <- lm(G3 ~ G2+nursery+famrel+absences+J2, data=train)
+bwd.fit <- lm(G3 ~ G2+nursery+famrel+absences+G2, data=train)
 y.hat <- predict(bwd.fit, test)
 comparaciones <- agregar_modelo("BWD selection", 
-                                y.hat, "nursery+famrel+absences+G1+G2")
+                                y.hat)
 
 #### Mixed-Selection:
 regfit.mix <- regsubsets(G3 ~ ., data=train, nvmax=p, method="seqrep")
@@ -225,7 +227,7 @@ for (j in 1:k) {
 
 mean.cv.errors.mix <- apply(cv.errors, 2, mean)
 coef_mix <- which.min(mean.cv.errors.mix) # 2
-coef(regfit.mix, coef_mix) # mismas que FWD.
+coef(regfit.mix, coef_mix) # mismas que FWD. ..nursery+famrel+absences+G1+G2,
 
 ### Mixed-Selection por AIC
 set.seed(9)
@@ -374,6 +376,12 @@ sacar <- c("school", "sex", "address", "famsize", "Pstatus",
            "traveltime", "freetime", "schoolsup", "famsup", 
            "paid", "activities", "nursery", "internet", 
            "famrel", "Dalc", "Walc", "health", "absences")
+
+levels(train$school)
+
+for (i in 1:length(sacar)) {
+  print(paste(sacar[i], "->", levels(train[,sacar[i]])))
+}
 
 train2 <- train[, !(names(train) %in% sacar)]
 test2 <- test[, !(names(test) %in% sacar)]
