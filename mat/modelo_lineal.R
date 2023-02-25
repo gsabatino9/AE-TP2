@@ -100,14 +100,21 @@ donde Beta_1 = ... = Beta_p = 0. Que se corresponde con la media de las Y.
 "
 ## Modelo nulo ----
 y.hat <- mean(train$G3)
-calcular_ecm <- function(y.hat) {
-  return(mean((y.hat - test$G3)^2))
+
+calcular_ecm <- function(modelo, a_testear) {
+  y.hat <- predict(modelo, a_testear)
+  return(mean((y.hat - a_testear$G3)^2))
 }
-ECM_modelo_nulo <- calcular_ecm(y.hat) # 27.86631
+
+ecm_predicciones <- function(predicciones, a_testear) {
+  return(mean((predicciones - a_testear$G3)^2))
+}
+
+ECM_modelo_nulo <- ecm_predicciones(y.hat, test) # 27.86631
 comparaciones <- data.frame(Modelo="Nulo", "ECM test"=ECM_modelo_nulo)
 
-agregar_modelo <- function(nombre, pred) {
-  ECM <- calcular_ecm(pred)
+agregar_modelo <- function(nombre, modelo, a_testear) {
+  ECM <- calcular_ecm(modelo, a_testear)
   return(
     rbind(comparaciones, 
           data.frame(Modelo=nombre, "ECM test"=ECM))
@@ -127,8 +134,7 @@ a excepción de G2. Pero, puede que alguno de ellos se deba a un error
 (aunque es muy difícil puesto que el p-valor de la regresión es casi 0).
 "
 
-y.hat <- predict(lm.fit, test)
-comparaciones <- agregar_modelo("Reg. lineal completo", y.hat)
+comparaciones <- agregar_modelo("Reg. lineal completo", lm.fit, test)
 
 importancias <- (varImp(lm.fit) / sum(varImp(lm.fit)[,1])) * 100
 ord <- order(importancias[, 1], decreasing=T)
@@ -170,11 +176,11 @@ mean.cv.errors.fwd <- apply(cv.errors, 2, mean)
 coef_fwd <- which.min(mean.cv.errors.fwd)
 coef(regfit.fwd, coef_fwd)
 
-fwd.fit <- lm(G3 ~ nursery+famrel+absences+G1+G2, data=train)
-y.hat <- predict(fwd.fit, test)
+#fwd.fit <- lm(G3 ~ nursery+famrel+absences+G1+G2, data=train)
+fwd.fit <- lm(G3 ~ Mjob+nursery+absences+G1+G2+famrel+goout+health
+              , data=train)
 comparaciones <- agregar_modelo("FWD selection", 
-                                y.hat)
-
+                                fwd.fit, test)
 #### Backward-Selection:
 regfit.bwd <- regsubsets(G3 ~ ., data=train, nvmax=p, method="backward")
 summary(regfit.bwd)
@@ -491,9 +497,12 @@ coef_fwd <- which.min(mean.cv.errors.fwd)
 coef(regfit.fwd, coef_fwd)
 
 fwd.fit <- lm(G3 ~ G1+G2+absences, data=train2)
+fwd.fit <- lm(G3 ~ G1+G2, data=train2)
 y.hat <- predict(fwd.fit, test2)
 comparaciones <- agregar_modelo("FWD selection 2", 
                                 y.hat)
+
+calcular_ecm2(fwd.fit, test2)
 
 ### Mixed-Selection por AIC
 set.seed(9)
@@ -528,6 +537,8 @@ best_lambda <- cv.out$lambda.min
 coef(lasso.mod, s=best_lambda)
 lasso.pred <- predict(lasso.mod, s=best_lambda, newx=x.test)
 
+ecm_predicciones(lasso.pred, test2)
+
 sst <- sum((test$G3 - mean(test$G3))^2)
 sse <- sum((lasso.pred - test$G3)^2)
 rsq <- 1 - (sse * (n-1))/(sst * (n-p))
@@ -543,3 +554,18 @@ row.names(importancias) <- 1:nrow(importancias)
 
 importancias <- importancias[ord, ]
 row.names(importancias) <- importancias$features
+
+## Intervalos de confianza para el mejor modelo ----
+a <- confint(fwd.fit)
+l <- nrow(a)
+
+confs <- matrix(NA, nrow=l, ncol=2)
+
+for (i in 1:l) {
+  beta <- (a[i,2]+a[i,1])/2
+  intervalo <- a[i,2]-beta
+  confs[i,] <- c(beta,intervalo)
+}
+
+row.names(confs) <- names(fwd.fit$coefficients)
+names(confs) <- c("Beta", "+-")
