@@ -3,6 +3,7 @@
 ## Importo librerías
 load_libraries <- function() {
   library(MASS)
+  library(caret)
   library(ISLR2)
   library(carData)
   library(car)
@@ -20,22 +21,34 @@ load_libraries <- function() {
 }
 
 load_libraries()
-mat <- read.table("student-mat.csv",sep=",",header=TRUE)
+mat <- read.table("mat_transf.csv",sep=",",header=TRUE)
+por <- read.table("por_transf.csv",sep=",",header=TRUE)
 
-mat[-c(3,13,14,15,30,31,32,33)] <- 
-  lapply(mat[-c(3,13,14,15,30,31,32,33)], factor)
+mat <- mat[, -1]
+por <- por[, -1]
 
-mat$freetime <- as.numeric(mat$freetime)
-mat$famrel <- as.numeric(mat$famrel)
-mat$goout <- as.numeric(mat$goout)
-mat$Dalc <- as.numeric(mat$Dalc)
-mat$Walc <- as.numeric(mat$Walc)
-mat$health <- as.numeric(mat$health)
-mat$Medu <- as.numeric(mat$Medu)
-mat$Fedu <- as.numeric(mat$Fedu)
+mat[-c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)] <- 
+  lapply(mat[-c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)], factor)
+por[-c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)] <- 
+  lapply(por[-c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)], factor)
 
+mat[c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)] <- 
+  lapply(mat[c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)], as.numeric)
+por[c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)] <- 
+  lapply(por[c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)], as.numeric)
 
+# Split train-test ----
+set.seed(9)
+aux_train <- sample(1:nrow(mat), nrow(mat)*0.8)
+aux_test <- (-aux_train)
+train.M <- mat[aux_train, ]
+test.M <- mat[aux_test, ]
 
+set.seed(9)
+aux_train <- sample(1:nrow(por), nrow(por)*0.8)
+aux_test <- (-aux_train)
+train.P <- por[aux_train, ]
+test.P <- por[aux_test, ]
 
 # Análisis de variables ----
 library(stargazer)
@@ -109,47 +122,10 @@ curve(dnorm(x, mean = mean(mat$absences), sd = sd(mat$absences)), col="red", add
 
 describe(mat$absences)
 
-# Split train-test ----
-set.seed(9)
-aux_train <- sample(1:nrow(mat), nrow(mat)*0.7)
-aux_test <- (-aux_train)
-
-train <- mat[aux_train, ]
-test <- mat[aux_test, ]
-
-
-n <- nrow(train)
-p <- ncol(train)-1
-# Un modelo de prueba ----
-calcular_ecm <- function(y.hat) {
-  return(mean((y.hat - test$G3)^2))
-}
-
-lm.fit <- lm(G3 ~ ., data=train)
-calcular_ecm(predict(lm.fit, test))
-
-step(lm.fit, direction = 'backward')
-
-lm.back <- lm(formula = G3 ~ school + age + nursery + internet + famrel + 
-                absences + G1 + G2, data = train)
-calcular_ecm(predict(lm.back, test))
-
-selection(x=subset(train, select=names(train),
-                   y = mat$G3, q=5, seconds = T, nmodels = 2))
-
-# Análisis para el mejor modelo
-anova(lm.fit, lm.back) # pongp todos los modelos
-leveragePlots(lm.fit) # analizo el que selecciono
-hist(residuals(lm.fit))
-
-describe(residuals(lm.fit))
-durbinWatsonTest(lm.fit)
-vif(lm.fit)
-
 # Otro análisis ----
-
 library(Hmisc)
-RawDataMatrix <- subset(train, select=c(age, Medu, Fedu, traveltime, studytime, failures,famrel, freetime, goout, Dalc, Walc, health, absences, G1, G2, G3))
+# Mat
+RawDataMatrix <- subset(train.M, select=c(age, Medu, Fedu, traveltime, studytime, failures,famrel, freetime, goout, Dalc, Walc, health, absences, G1, G2, G3))
 corMatrix2 <- rcorr(as.matrix(RawDataMatrix), 
                     type = c("pearson","spearman"))
 
@@ -163,43 +139,48 @@ corrplot(corMatrix2$r, p.mat = corMatrix2$P, sig.level = 0.05, insig = "blank",
 corrplot(corMatrix2$r, p.mat = corMatrix2$P, sig.level = 0.05, insig = "blank",
          order="hclust", addrect=2)
 
-# LASSO ----
-x.train <- model.matrix(G3 ~ ., train2)[, -1]
-y.train <- train2$G3
-x.test <- model.matrix(G3 ~ ., test2)[, -1]
-y.test <- test2$G3
-grid <- 10^seq(10, -2, length=100)
 
-lasso.mod <- glmnet(x.train, y.train, alpha=1, lambda=grid)
+# Outliers por variable ----
+# Mat
+attach(mat)
+boxplot(G3 ~ failures)
+box_plot <- function(data, x, y) {
+  p <- ggplot(data = data, aes(x=x, y = y)) +
+    geom_boxplot(aes(fill=x)) +
+    labs(title ="", y = "")+
+    theme(plot.title = element_text(size = 15, hjust=0.5))+
+    scale_fill_manual(values=c("#0097BF", "#204FFF")) +
+    scale_y_continuous(breaks=c(1:20))
+  
+  return(p)
+}
 
-set.seed(9)
-cv.out <- cv.glmnet(x.train, y.train, alpha=1)
+box_plot(mat, school, G3)
+box_plot(mat, Medu, G3)
 
-best_lambda <- cv.out$lambda.min
-coef(lasso.mod, s=best_lambda)
-lasso.pred <- predict(lasso.mod, s=best_lambda, newx=x.test)
+# Otro 2 ----
+features <- setdiff(names(mat), "G3")
+pre_process <- preProcess(
+  x      = train.M[, features],
+  method = c("center", "scale")    
+)
 
-sst <- sum((test$G3 - mean(test$G3))^2)
-sse <- sum((lasso.pred - test$G3)^2)
-rsq <- 1 - (sse * (n-1))/(sst * (n-p))
+# Mat
+train_x <- predict(pre_process, train.M[, features])
+test_x <- predict(pre_process, test.M[, features])
 
-lm2 <- lm(G3 ~ age+studytime+failures+romantic+absences+G1+G2,
-          data=train2)
-y.h <- predict(lm2, test2)
-mean((y.h - test2$G3)^2)
+train_x$G3 <- train.M$G3
+test_x$G3 <- test.M$G3
 
-# Saco presuntos outliers ----
-# Forma 1: Cambio los 0s por 1s:
-train$G3 <- ifelse(train$G3 == 0, 1, train$G3)
-train$G2 <- ifelse(train$G2 == 0, 1, train$G2)
-train$G1 <- ifelse(train$G1 == 0, 1, train$G1)
+train.M <- train_x
+test.M <- test_x
 
-test$G3 <- ifelse(test$G3 == 0, 1, test$G3)
-test$G2 <- ifelse(test$G2 == 0, 1, test$G2)
-test$G1 <- ifelse(test$G1 == 0, 1, test$G1)
+# Por
+train_x <- predict(pre_process, train.P[, features])
+test_x <- predict(pre_process, test.P[, features])
 
-# Forma 2: Los remuevo directamente:
-train <- train[train$G1 & train$G2 & train$G3, ]
-test <- test[test$G1 & test$G2 & test$G3, ]
+train_x$G3 <- train.P$G3
+test_x$G3 <- test.P$G3
 
-n <- nrow(train)
+train.P <- train_x
+test.P <- test_x

@@ -2,6 +2,8 @@
 ## Importo librerías
 load_libraries <- function() {
   library(MASS)
+  library(jtools)
+  library(broom.mixed)
   library(caret)
   library(ISLR2)
   library(carData)
@@ -52,21 +54,25 @@ test.P <- por[aux_test, ]
 # Comparación de modelos ----
 ecm <- function(modelo, a_testear) {
   y.hat <- predict(modelo, a_testear)
-  return(mean((y.hat - a_testear$G3)^2))
+  return(
+    c(mean((y.hat - a_testear$G3)^2), summary(modelo)$r.squared,
+      sum(summary(modelo)$coefficients[,4] < 0.01)-1
+      )
+    )
 }
 
 ecm_pred <- function(predicciones, a_testear) {
   return(mean((predicciones - a_testear$G3)^2))
 }
 
-cmp.M <- matrix()
-cmp.P <- matrix()
+cmp.M <- matrix(ncol=3)
+cmp.P <- matrix(ncol=3)
 ## 1. Modelo nulo 1 (promedio) ----
 y_h.M <- mean(train.M$G3)
 y_h.P <- mean(train.P$G3)
 
-null1.M <- ecm_pred(y_h.M, test.M)
-null1.P <- ecm_pred(y_h.P, test.P)
+null1.M <- c(ecm_pred(y_h.M, test.M), 0, 0)
+null1.P <- c(ecm_pred(y_h.P, test.P), 0, 0)
 cmp.M[1,] <- null1.M
 cmp.P[1,] <- null1.P
 
@@ -78,16 +84,23 @@ summary(m2.M)
 
 cmp.M <- rbind(cmp.M, ecm(m2.M, test.M))
 
-plot(test.M$G2, test.M$G3, pch=20)
+plot(test.M$G2, test.M$G3, pch=20, xlab="G2", ylab="G3")
 abline(m2.M, lwd=2, col="red") # acá si hay outliers
+effect_plot(m2.M, pred=G2, interval = TRUE, partial.residuals = TRUE)
+plot_summs(m2.M)
+
 # Por
 m2.P <- lm(G3 ~ G2, data=train.P)
 summary(m2.P)
 
 cmp.P <- rbind(cmp.P, ecm(m2.P, test.P))
 
-plot(test.P$G2, test.P$G3, pch=20)
+plot(test.P$G2, test.P$G3, pch=20, xlab="G2", ylab="G3")
 abline(m2.P, lwd=2, col="red")
+effect_plot(m2.P, pred=G2, interval = TRUE, partial.residuals = TRUE)
+plot_summs(m2.P)
+
+plot_summs(m2.M, m2.P, model.names=c("Mat", "Por"))
 ## 3. Modelo con todos los predictores ----
 # Mat
 m3.M <- lm(G3 ~ ., data=train.M)
@@ -95,12 +108,32 @@ summary(m3.M)
 
 cmp.M <- rbind(cmp.M, ecm(m3.M, test.M)) # es peor que G2 solo.
 
+effect_plot(m3.M, pred=G2, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m3.M, pred=famrel, interval = TRUE, partial.residuals = TRUE)
+
+plot_summs(m3.M, 
+           coefs=c("G2", "absences", "health", "goout", "famrel", "nursery"))
 # Por
 m3.P <- lm(G3 ~ ., data=train.P)
 summary(m3.P)
 
 cmp.P <- rbind(cmp.P, ecm(m3.P, test.P)) # es peor que G2 solo.
 
+effect_plot(m3.P, pred=G2, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m3.P, pred=G1, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m3.P, pred=failures, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m3.P, pred=age, interval = TRUE, partial.residuals = TRUE)
+
+plot_summs(m3.P, 
+           coefs=c("G2", "G1", "higher", "failures", "traveltime",
+                   "Fjobservices", "Fjobother", "Mjobteacher", 
+                   "Mjobhealth", "age", "sexM"))
+
+plot_summs(m3.M, m3.P, model.names=c("Mat", "Por"),
+           coefs=c("G2", "G1", "higher", "failures", "traveltime",
+                   "Fjobservices", "Fjobother", "Mjobteacher", 
+                   "Mjobhealth", "age", "sexM",
+                   "absences", "health", "goout", "famrel", "nursery"))
 ## 4. Backward Selection con todos los predictores ----
 find_coefs_bwd <- function(train) {
   p <- ncol(train)-1
@@ -125,12 +158,27 @@ summary(m4.M)
 
 cmp.M <- rbind(cmp.M, ecm(m4.M, test.M))
 
+effect_plot(m4.M, pred=G2, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m4.M, pred=famrel, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m4.M, pred=nursery, interval = TRUE, partial.residuals = TRUE)
+
+plot_summs(m4.M, 
+           coefs=c("G2", "famrel", "nurseryyes", "G1", "health", "goout"))
+
 # Por
-find_coefs_bwd(train.P)
+plot(find_coefs_bwd(train.P))
 m4.P <- lm(G3 ~ G1+G2, data=train.P)
 summary(m4.P)
 
 cmp.P <- rbind(cmp.P, ecm(m4.P, test.P)) # este si mejora G2 solo.
+
+effect_plot(m4.P, pred=G2, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m4.P, pred=G1, interval = TRUE, partial.residuals = TRUE)
+
+plot_summs(m4.P)
+
+plot_summs(m4.M, m4.P, model.names=c("Mat", "Por"),
+           coefs=c("G2", "famrel", "nurseryyes", "G1", "health", "goout"))
 
 ## 4.1. Forward Selection con todos los predictores ----
 find_coefs_fwd <- function(train) {
@@ -149,7 +197,7 @@ find_coefs_fwd <- function(train) {
 }
 
 # Mat
-find_coefs_fwd(train.M)
+plot(find_coefs_fwd(train.M))
 m4.1.M <- lm(G3 ~ Mjob+nursery+famrel+goout+health
            +absences+G1+G2, data=train.M)
 summary(m4.1.M)
@@ -167,12 +215,33 @@ summary(m5.M)
 
 cmp.M <- rbind(cmp.M, ecm(m5.M, test.M))
 
+effect_plot(m5.M, pred=G2, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m5.M, pred=famrel, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m5.M, pred=nursery, interval = TRUE, partial.residuals = TRUE)
+
+plot_summs(m3.M, 
+           coefs=c("G2", "G1", "absences", "health", "goout", "famrel",
+                   "nurseryyes"))
+
 # Por
 set.seed(9)
 m5.P <- stepAIC(m3.P, direction="both", trace=FALSE)
 summary(m5.P)
 
 cmp.P <- rbind(cmp.P, ecm(m5.P, test.P))
+
+effect_plot(m5.P, pred=G2, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m5.P, pred=G1, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m5.P, pred=failures, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m5.P, pred=age, interval = TRUE, partial.residuals = TRUE)
+
+plot_summs(m5.P, 
+           coefs=c("G2", "G1", "failures", "age"))
+
+plot_summs(m5.M, m5.P, model.names=c("Mat", "Por"),
+           coefs=c("G2", "G1", "failures", "age",
+                   "absences", "health", "goout", "famrel",
+                   "nurseryyes"))
 
 ## 6. Lasso con todos los predictores ----
 model_lasso <- function(train, test) {
@@ -200,15 +269,35 @@ model_lasso(train.M, test.M)
 
 m6.M <- lm(G3 ~ address+Mjob+failures+schoolsup+nursery
            +famrel+goout+health+absences+G1+G2, data=train.M)
+summary(m6.M)
 cmp.M <- rbind(cmp.M, ecm(m6.M, test.M))
+
+effect_plot(m6.M, pred=G2, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m6.M, pred=famrel, interval = TRUE, partial.residuals = TRUE)
+
+plot_summs(m6.M, 
+           coefs=c("G2", "famrel", "health", "goout"))
 
 # Por
 model_lasso(train.P, test.P)
 
 m6.P <- lm(G3 ~ sex+age+Mjob+Fjob+reason+traveltime+failures+activities
            +higher+freetime+goout+Dalc+Walc+health+absences+G1+G2, data=train.P)
+summary(m6.P)
 cmp.P <- rbind(cmp.P, ecm(m6.P, test.P))
 
+effect_plot(m6.P, pred=G2, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m6.P, pred=G1, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m6.P, pred=failures, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m6.P, pred=traveltime, interval = TRUE, partial.residuals = TRUE)
+effect_plot(m6.P, pred=age, interval = TRUE, partial.residuals = TRUE)
+
+plot_summs(m6.P, 
+           coefs=c("G2", "G1", "failures", "traveltime", "age"))
+
+plot_summs(m6.M, m6.P, model.names=c("Mat", "Por"),
+           coefs=c("G2", "G1", "failures", "traveltime", "age",
+                   "famrel", "health", "goout"))
 # Elecciones de mejor modelo ----
 # Mat
 # El mejor modelo es solo con G2:

@@ -55,15 +55,16 @@ test.P <- por[aux_test, ]
 # Comparación de modelos ----
 ecm <- function(modelo, a_testear) {
   y.hat <- predict(modelo, a_testear)
-  return(mean((y.hat - a_testear$G3)^2))
+  return(
+    c(mean((y.hat - a_testear$G3)^2), summary(modelo)$r.squared))
 }
 
 ecm_pred <- function(predicciones, a_testear) {
   return(mean((predicciones - a_testear$G3)^2))
 }
 
-cmp.M <- matrix()
-cmp.P <- matrix()
+cmp.M <- matrix(ncol=2)
+cmp.P <- matrix(ncol=2)
 ## 1. Modelo nulo 1 (promedio) ----
 y_h.M <- mean(train.M$G3)
 y_h.P <- mean(train.P$G3)
@@ -119,33 +120,6 @@ m3.P <- lm(G3 ~ school+sex+age+Fjob+reason+failures+schoolsup+
 summary(m3.P)
 
 cmp.P <- rbind(cmp.P, ecm(m3.P, test.P))
-
-## 3.1. Forward Selection con todos los predictores ----
-find_coefs_fwd <- function(train) {
-  p <- ncol(train)-1
-  
-  set.seed(123)
-  train.control <- trainControl(method = "cv", number = 10)
-  step.model <- train(G3 ~., data = train,
-                      method = "leapForward", 
-                      tuneGrid = data.frame(nvmax = 1:p),
-                      trControl = train.control)
-  step.model$results
-  step.model$bestTune
-  summary(step.model$finalModel)
-  print(coef(step.model$finalModel, step.model$bestTune[1,]))
-}
-
-# Mat
-find_coefs_fwd(train.M)
-m4.1.M <- lm(G3 ~ Mjob+nursery+famrel+goout+health
-             +absences+G1+G2, data=train.M)
-summary(m4.1.M)
-
-cmp.M <- rbind(cmp.M, ecm(m4.1.M, test.M))
-
-# Por
-find_coefs_fwd(train.P) # Llego a lo mismo que con BWD.
 
 ## 4. Mixed Selection usando el criterio AIC ----
 # Mat
