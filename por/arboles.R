@@ -3,6 +3,9 @@
 ## Importo librerías
 load_libraries <- function() {
   library(MASS)
+  library(jtools)
+  library(broom.mixed)
+  library(caret)
   library(ISLR2)
   library(carData)
   library(car)
@@ -20,37 +23,33 @@ load_libraries <- function() {
 }
 
 load_libraries()
-por <- read.table("student-por.csv",sep=",",header=TRUE)
+mat <- read.table("mat_transf.csv",sep=",",header=TRUE)
+por <- read.table("por_transf.csv",sep=",",header=TRUE)
 
-por[-c(3,13,14,15,30,31,32,33)] <- 
-  lapply(por[-c(3,13,14,15,30,31,32,33)], factor)
+mat <- mat[, -1]
+por <- por[, -1]
 
+mat[-c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)] <- 
+  lapply(mat[-c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)], factor)
+por[-c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)] <- 
+  lapply(por[-c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)], factor)
+
+mat[c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)] <- 
+  lapply(mat[c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)], as.numeric)
+por[c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)] <- 
+  lapply(por[c(3,7,8,13,14,15,24,25,26,27,28,29,30,31,32,33)], as.numeric)
+
+# Split train-test ----
 set.seed(9)
-aux_train <- sample(1:nrow(por), nrow(por)*0.7)
+aux_train <- sample(1:nrow(por), nrow(por)*0.8)
 aux_test <- (-aux_train)
-
 train <- por[aux_train, ]
 test <- por[aux_test, ]
-
-
 n <- nrow(train)
 p <- ncol(train)-1
 
-train$freetime <- as.numeric(train$freetime)
-train$famrel <- as.numeric(train$famrel)
-train$goout <- as.numeric(train$goout)
-train$Dalc <- as.numeric(train$Dalc)
-train$Walc <- as.numeric(train$Walc)
-train$health <- as.numeric(train$health)
-
-test$freetime <- as.numeric(test$freetime)
-test$famrel <- as.numeric(test$famrel)
-test$goout <- as.numeric(test$goout)
-test$Dalc <- as.numeric(test$Dalc)
-test$Walc <- as.numeric(test$Walc)
-test$health <- as.numeric(test$health)
-
 # Comparación de modelos ----
+library(randomForestExplainer)
 ## Modelo nulo ----
 y.hat <- mean(train$G3)
 calcular_ecm <- function(y.hat) {
@@ -82,12 +81,21 @@ text(prunning.fit, pretty=0)
 
 y.hat.prunning <- predict(prunning.fit, test)
 comparaciones <- agregar_modelo("Árbol podado", y.hat.prunning)
+
 ## Bagging ----
 set.seed(9)
 bag.fit <- randomForest(G3 ~ ., data=train, mtry=p, importance=TRUE)
 
 y.hat.bag <- predict(bag.fit, test)
 comparaciones <- agregar_modelo("Bagging", y.hat.bag)
+
+varImpPlot(rf.fit)
+imps <- importance(bag.fit)
+ord <- order(imps[, 2], decreasing=T)
+
+importancias <- imps[ord, 2]
+total <- sum(importancias)
+(importancias / total) * 100 # para ver porcentajes relativos.
 
 # Dejo crecer más el árbol todavía
 set.seed(9)
@@ -97,10 +105,6 @@ bag.fit2 <- randomForest(G3 ~ ., data=train,
 y.hat.bag2 <- predict(bag.fit2, test)
 calcular_ecm(y.hat.bag2) # lo mejora.
 
-varImpPlot(bag.fit)
-"
-G2, absences, age, G1, failures, Medu.
-"
 ## Random Forest ----
 set.seed(9)
 rf.fit <- randomForest(G3 ~ ., data=train, mtry=p/3, importance=TRUE)
@@ -108,13 +112,11 @@ rf.fit <- randomForest(G3 ~ ., data=train, mtry=p/3, importance=TRUE)
 y.hat.rf <- predict(rf.fit, test)
 comparaciones <- agregar_modelo("Random Forest", y.hat.rf)
 
-varImpPlot(rf.fit)
-imps <- importance(rf.fit)
-ord <- order(imps[, 2], decreasing=T)
-
-importancias <- imps[ord, 2]
-total <- sum(importancias)
-(importancias / total) * 100 # para ver porcentajes relativos.
+#varImpPlot(rf.fit)
+"
+G2, G1, absences, failures, Mjob, Fedu, age, Medu, Fjob, health,
+famrel.
+"
 ## Boosting ----
 boost.fit <- gbm(G3 ~ ., data=train,
                  distribution="gaussian", n.trees=5000)
@@ -133,6 +135,50 @@ set.seed(9)
 barfit <- gbart(xtrain, ytrain, x.test=xtest)
 yhat.bar <- barfit$yhat.test.mean
 ECM_bart <- mean((ytest - yhat.bar)^2)
+comparaciones <- rbind(comparaciones, data.frame(Modelo="BART", ECM.test=ECM_bart))
 
 ord <- order(barfit$varcount.mean, decreasing=T)
-barfit$varcount.mean[ord] # Dalc como novedad
+barfit$varcount.mean[ord] # guardian como novedad
+
+# Gráficos ----
+forest <- rf.fit
+
+## Gráficos 1 ----
+#min_depth_frame <- min_depth_distribution(forest)
+#save(min_depth_frame, file = "min_depth_frame.rda")
+load("min_depth_frame.rda")
+head(min_depth_frame, n = 10)
+plot_min_depth_distribution(min_depth_frame, mean_sample="relevant_trees")
+
+## Importancia de variables ----
+#importance_frame <- measure_importance(forest)
+#save(importance_frame, file = "importance_frame.rda")
+load("importance_frame.rda")
+importance_frame
+
+plot_importance_ggpairs(importance_frame)
+plot_multi_way_importance(importance_frame, x_measure = "mse_increase", 
+                          y_measure = "node_purity_increase", 
+                          size_measure = "p_value", no_of_labels = 5)
+
+plot_multi_way_importance(importance_frame, x_measure = "mse_increase", 
+                          y_measure = "node_purity_increase", 
+                          no_of_labels = 5)
+plot_multi_way_importance(importance_frame, x_measure = "mean_min_depth", 
+                          y_measure = "p_value", 
+                          no_of_labels = 5)
+plot_importance_rankings(importance_frame)
+
+## Interacción ----
+(vars <- important_variables(importance_frame, k = 5, measures = c("mean_min_depth", "no_of_trees")))
+
+#interactions_frame <- min_depth_interactions(forest, vars)
+#save(interactions_frame, file = "interactions_frame.rda")
+load("interactions_frame.rda")
+head(interactions_frame[order(interactions_frame$occurrences, decreasing = TRUE), ])
+
+plot_min_depth_interactions(interactions_frame)
+plot_predict_interaction(forest, test, "G2", "G1")
+plot_predict_interaction(forest, test, "G1", "goout")
+plot_predict_interaction(forest, test, "G2", "age")
+plot_predict_interaction(forest, test, "G1", "G2")

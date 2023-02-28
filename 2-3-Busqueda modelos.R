@@ -255,6 +255,7 @@ model_lasso <- function(train, test) {
   
   set.seed(9)
   cv.out <- cv.glmnet(x.train, y.train, alpha=1)
+  plot(cv.out)
   
   best_lambda <- cv.out$lambda.min
   a <- coef(lasso.mod, s=best_lambda)
@@ -298,25 +299,3 @@ plot_summs(m6.P,
 plot_summs(m6.M, m6.P, model.names=c("Mat", "Por"),
            coefs=c("G2", "G1", "failures", "traveltime", "age",
                    "famrel", "health", "goout"))
-# Elecciones de mejor modelo ----
-# Mat
-# El mejor modelo es solo con G2:
-summary(m2.M)
-"
-p-value: < 2.2e-16
-Adjusted R-squared:  0.9269
-"
-
-best.M <- lm(G3 ~ G2, data=train.M)
-
-# Por
-# El mejor modelo es con G1+G2:
-summary(m4.P)
-"
-p-value: < 2.2e-16
-Adjusted R-squared:  0.8688
-p-valor G1 = 6.46e-08
-p-valor G2 < 2.2e-16
-"
-
-best.P <- lm(G3 ~ G1+G2, data=train.P)
